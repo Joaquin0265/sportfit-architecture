@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 1. Contenedor del Backend de tu tienda (Node.js)
+  backend:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mariadb
+      - mongodb
+    env_file:
+      - .env
+
+  # 2. Contenedor de la Base de Datos Relacional (MariaDB)
+  mariadb:
+    image: mariadb:10.6
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: proyecto
+      MYSQL_USER: admin_tienda
+      MYSQL_PASSWORD: Password123!
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+  # 3. Contenedor de la Base de Datos NoSQL para Redes Sociales (MongoDB)
+  mongodb:
+    image: mongo:latest
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+# Volúmenes persistentes gestionados por el Sistema Operativo para evitar pérdida de datos
+volumes:
+  mariadb_data:
+  mongodb_data:

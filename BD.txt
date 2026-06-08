@@ -1,0 +1,122 @@
+-- 1. Usar la base de datos
+USE proyecto;
+
+-- ==========================================
+-- 2. LIMPIEZA PREVIA (Orden estricto de hijas a padres)
+-- ==========================================
+DROP TABLE IF EXISTS Detalles_Pedido;
+DROP TABLE IF EXISTS Carrito_Items;
+DROP TABLE IF EXISTS Carritos;
+DROP TABLE IF EXISTS Pedidos;
+DROP TABLE IF EXISTS Productos;
+DROP TABLE IF EXISTS Categorias;
+DROP TABLE IF EXISTS Usuarios;
+DROP TABLE IF EXISTS Roles;
+
+-- ==========================================
+-- 3. CREACIÓN DE TABLAS (La nueva arquitectura)
+-- ==========================================
+
+-- Tabla de Roles (Para separar al Admin del Cliente)
+CREATE TABLE Roles (
+    id_rol INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL
+);
+
+-- Tabla de Usuarios (Con contraseña encriptada)
+CREATE TABLE Usuarios (
+    id_usuario INT AUTO_INCREMENT PRIMARY KEY,
+    id_rol INT NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    correo VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL, 
+    fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_rol) REFERENCES Roles(id_rol)
+);
+
+CREATE TABLE Categorias (
+    id_categoria INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL,
+    descripcion TEXT
+);
+
+CREATE TABLE Productos (
+    id_producto INT AUTO_INCREMENT PRIMARY KEY,
+    id_categoria INT,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    precio DECIMAL(10, 2) NOT NULL,
+    stock INT NOT NULL DEFAULT 0,
+    imagen_url VARCHAR(255), 
+    FOREIGN KEY (id_categoria) REFERENCES Categorias(id_categoria) ON DELETE SET NULL
+);
+
+-- Carrito Persistente (Vinculado a un usuario)
+CREATE TABLE Carritos (
+    id_carrito INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT UNIQUE NOT NULL, 
+    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE CASCADE
+);
+
+-- Qué hay dentro del carrito de cada usuario
+CREATE TABLE Carrito_Items (
+    id_carrito INT,
+    id_producto INT,
+    cantidad INT NOT NULL DEFAULT 1,
+    PRIMARY KEY (id_carrito, id_producto),
+    FOREIGN KEY (id_carrito) REFERENCES Carritos(id_carrito) ON DELETE CASCADE,
+    FOREIGN KEY (id_producto) REFERENCES Productos(id_producto) ON DELETE CASCADE
+);
+
+-- Pedidos vinculados al ID del Usuario (Simulando el pago con el estado)
+CREATE TABLE Pedidos (
+    id_pedido INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT NOT NULL,
+    fecha_pedido DATETIME DEFAULT CURRENT_TIMESTAMP,
+    direccion_envio VARCHAR(255) NOT NULL,
+    total DECIMAL(10, 2) NOT NULL,
+    estado ENUM('Pendiente', 'Pagado', 'Enviado', 'Entregado') DEFAULT 'Pendiente',
+    FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario)
+);
+
+CREATE TABLE Detalles_Pedido (
+    id_pedido INT,
+    id_producto INT,
+    cantidad INT NOT NULL,
+    precio_unitario DECIMAL(10, 2) NOT NULL, 
+    PRIMARY KEY (id_pedido, id_producto),
+    FOREIGN KEY (id_pedido) REFERENCES Pedidos(id_pedido) ON DELETE CASCADE,
+    FOREIGN KEY (id_producto) REFERENCES Productos(id_producto) ON DELETE RESTRICT
+);
+
+-- ==========================================
+-- 4. INSERCIÓN DE DATOS DE PRUEBA (MOCK DATA)
+-- ==========================================
+
+INSERT INTO Roles (nombre) VALUES ('Administrador'), ('Cliente');
+
+-- Insertar un usuario Administrador y un Cliente de prueba
+INSERT INTO Usuarios (id_rol, nombre, correo, password_hash) VALUES 
+(1, 'Joaquin Admin', 'admin@fitstore.com', '$2b$10$simulacionDeHashParaAdmin1234'),
+(2, 'Carlos Mendoza', 'carlos.mendoza@email.com', '$2b$10$simulacionDeHashParaCliente1234');
+
+INSERT INTO Categorias (nombre, descripcion) VALUES 
+('Suplementos', 'Proteínas, creatinas, pre-entrenos y vitaminas para recomposición corporal.'),
+('Calistenia y Gimnasio', 'Equipamiento para entrenamiento de fuerza y peso corporal.'),
+('Accesorios', 'Muñequeras, straps, magnesio y otros.');
+
+INSERT INTO Productos (id_categoria, nombre, descripcion, precio, stock, imagen_url) VALUES 
+(1, 'Proteína Whey Isolate 2kg', 'Proteína de suero de leche aislada, ideal para ganancia muscular limpia.', 280.50, 25, '/img/whey2kg.jpg'),
+(1, 'Creatina Monohidratada 500g', 'Creatina pura para mejora de rendimiento y fuerza.', 110.00, 40, '/img/creatina500.jpg'),
+(2, 'Paralelas para Calistenia', 'Barras paralelas de acero con agarre antideslizante para fondos y L-sits.', 145.00, 15, '/img/paralelas.jpg'),
+(2, 'Cinturón de Lastre', 'Cinturón resistente con cadena para dominadas y fondos con peso extra.', 85.00, 20, '/img/cinturon_lastre.jpg'),
+(3, 'Magnesio Líquido 250ml', 'Magnesio líquido de secado rápido para un agarre perfecto en barra.', 35.00, 50, '/img/magnesio.jpg'),
+(3, 'Bandas de Resistencia (Set de 3)', 'Bandas de distintas tensiones para calentamiento y asistencia en dominadas.', 55.00, 30, '/img/bandas.jpg');
+
+INSERT INTO Pedidos (id_usuario, direccion_envio, total, estado) VALUES 
+(2, 'Av. Siempre Viva 123, Lima', 145.00, 'Pendiente');
+
+INSERT INTO Detalles_Pedido (id_pedido, id_producto, cantidad, precio_unitario) VALUES 
+(1, 2, 1, 110.00), 
+(1, 5, 1, 35.00);
