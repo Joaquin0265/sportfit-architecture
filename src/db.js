@@ -4,7 +4,7 @@ const pool = mysql.createPool({
     host: '192.168.1.19',         
     port: 3306,                
     user: 'admin_node',               
-    password: '1140',              
+    password: 'Password123!',              
     database: 'proyecto',       
     waitForConnections: true,
     connectionLimit: 10,

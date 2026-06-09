@@ -127,13 +127,11 @@ async function renderizarComentarios() {
         contenedor.innerHTML = comentariosReales.map(c => {
             const estrellasHtml = '★'.repeat(c.estrellas) + '☆'.repeat(5 - c.estrellas);
             
-            // Reacciones seguras de la reseña principal
             const r1 = c.reacciones ? c.reacciones['👍'] || 0 : 0;
             const r_dis = c.reacciones ? c.reacciones['👎'] || 0 : 0; 
             const r2 = c.reacciones ? c.reacciones['❤️'] || 0 : 0;
             const r3 = c.reacciones ? c.reacciones['😮'] || 0 : 0;
 
-            // RENDER LIMPIO: Respuestas del administrador
             let htmlRespuestas = '';
             if (c.respuestas && c.respuestas.length > 0) {
                 htmlRespuestas = c.respuestas.map(resp => `
@@ -201,8 +199,10 @@ async function renderizarComentarios() {
 document.getElementById('form-comentario')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const nombreUsuario = localStorage.getItem('user_name');
+    
+    // 🔒 SIN ALERTA: Redirección inmediata al login si no está logueado
     if (!nombreUsuario) {
-        alert("Debes iniciar sesión para poder dejar un comentario.");
+        window.location.href = 'login.html';
         return;
     }
 
@@ -229,6 +229,12 @@ document.getElementById('form-comentario')?.addEventListener('submit', async (e)
             body: JSON.stringify(nuevaResenaData)
         });
 
+        // Si el token expiró o fue rechazado por el backend (401), saltar al login
+        if (res.status === 401) {
+            window.location.href = 'login.html';
+            return;
+        }
+
         if (res.ok) {
             document.getElementById('comentario-texto').value = '';
             await renderizarComentarios();
@@ -242,8 +248,10 @@ document.getElementById('form-comentario')?.addEventListener('submit', async (e)
 
 async function enviarReaccion(idResena, emoticon) {
     const token = localStorage.getItem('token');
+    
+    // 🔒 SIN ALERTA: Redirección inmediata al intentar reaccionar de forma anónima
     if (!token) {
-        alert("Debes iniciar sesión para reaccionar a las opiniones.");
+        window.location.href = 'login.html';
         return;
     }
 
@@ -257,9 +265,12 @@ async function enviarReaccion(idResena, emoticon) {
             body: JSON.stringify({ emoticon: emoticon })
         });
 
+        if (res.status === 401) {
+            window.location.href = 'login.html';
+            return;
+        }
+
         if (res.ok) {
-            // 🔥 SOLUCIÓN MAESTRA: Al recargar los comentarios en caliente, 
-            // todos los contadores se actualizan con los datos reales de MongoDB de una sola vez.
             await renderizarComentarios();
         } else {
             console.error("El servidor Debian rechazó la actualización de la reacción.");
@@ -277,8 +288,10 @@ async function enviarRespuestaAdmin(idResena) {
     if (!texto) return;
 
     const token = localStorage.getItem('token');
+    
+    // 🔒 SIN ALERTA: Redirección inmediata para respuestas de administrador
     if (!token) {
-        alert("Debes iniciar sesión para poder responder.");
+        window.location.href = 'login.html';
         return;
     }
 
@@ -292,6 +305,11 @@ async function enviarRespuestaAdmin(idResena) {
             body: JSON.stringify({ texto: texto })
         });
 
+        if (res.status === 401) {
+            window.location.href = 'login.html';
+            return;
+        }
+
         if (res.ok) {
             input.value = ''; 
             await renderizarComentarios();
@@ -304,33 +322,26 @@ async function enviarRespuestaAdmin(idResena) {
     }
 }
 
-// 🔥 NUEVA FUNCIÓN: Genera el link dinámico adaptado a localhost o AWS y lo copia
+// Genera el link dinámico adaptado a localhost o AWS y lo copia
 async function compartirResena(idResena) {
     try {
-        // 1. Obtenemos el ID del producto actual desde la URL
         const urlParams = new URLSearchParams(window.location.search);
         const idProducto = urlParams.get('id');
 
         if (!idProducto) return;
 
-        // 2. TRUCO DE AWS: Leemos el dominio actual (localhost o IP pública de AWS) en caliente
         const baseDomain = window.location.origin;
-
-        // 3. Construimos el enlace apuntando al producto y usando un ancla (#) con el ID de Mongo
         const enlaceCompleto = baseDomain + '/detalle.html?id=' + idProducto + '#' + idResena;
 
-        // 4. Guardamos el string directamente en el portapapeles del dispositivo
         await navigator.clipboard.writeText(enlaceCompleto);
 
-        // 🔥 REEMPLAZO DEL ALERT FEO: Creamos una notificación flotante Premium en caliente
         const toastPersonalizado = document.createElement('div');
         
-        // Estilos CSS modernos aplicados directamente
         Object.assign(toastPersonalizado.style, {
             position: 'fixed',
             bottom: '30px',
             right: '30px',
-            backgroundColor: '#198754', // Verde éxito de Bootstrap
+            backgroundColor: '#198754', 
             color: '#ffffff',
             padding: '12px 24px',
             borderRadius: '8px',
@@ -344,31 +355,27 @@ async function compartirResena(idResena) {
             gap: '10px',
             opacity: '0',
             transition: 'opacity 0.4s ease, transform 0.4s ease',
-            transform: 'translateY(20px)' // 🔥 CORREGIDO: Mover en el eje Y de forma nativa
+            transform: 'translateY(20px)' 
         });
 
-        // Contenido con un icono limpio de Bootstrap Icons (si los usas)
         toastPersonalizado.innerHTML = `
             <i class="bi bi-check-circle-fill"></i> 
             <span>¡Enlace copiado al portapapeles con éxito!</span>
         `;
 
-        // Lo inyectamos en la página
         document.body.appendChild(toastPersonalizado);
 
-        // Efecto Fade-In (Aparecer suave)
         setTimeout(() => {
             toastPersonalizado.style.opacity = '1';
             toastPersonalizado.style.transform = 'translateY(0)';
         }, 50);
 
-        // Efecto Fade-Out y destrucción automática a los 3 segundos
         setTimeout(() => {
             toastPersonalizado.style.opacity = '0';
             toastPersonalizado.style.transform = 'translateY(20px)';
             setTimeout(() => {
                 toastPersonalizado.remove();
-            }, 400); // Espera a que termine la animación para borrarlo del DOM por completo
+            }, 400); 
         }, 3000);
 
     } catch (error) {

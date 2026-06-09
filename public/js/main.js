@@ -51,19 +51,16 @@ async function abrirMisPedidos() {
     if (!contenedorPedidos) return;
     
     if (!token) {
-        alert("Debes iniciar sesión para ver tus pedidos.");
+        window.location.href = 'login.html'; // Redirección directa al Login
         return;
     }
 
-    // Mostramos un mensaje de carga mientras el servidor responde
     contenedorPedidos.innerHTML = '<p class="text-center my-4"><i class="bi bi-arrow-repeat spin"></i> Cargando tu historial...</p>';
     
-    // Abrimos el modal
     const modal = new bootstrap.Modal(document.getElementById('modalMisPedidos'));
     modal.show();
 
     try {
-        // Pedimos los datos reales a la base de datos
         const res = await fetch('/api/pedidos/mis-pedidos', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -78,12 +75,8 @@ async function abrirMisPedidos() {
                     <p class="text-muted small">Tus futuros pedidos aparecerán aquí.</p>
                 </div>`;
         } else {
-            // Dibujamos las tarjetas con los datos de MariaDB
             contenedorPedidos.innerHTML = pedidosReales.map(p => {
-                // Colores para el estado
                 const colorEstado = p.estado === 'Entregado' ? 'success' : (p.estado === 'Enviado' ? 'primary' : 'warning text-dark');
-                
-                // Formateamos la fecha (MySQL la devuelve con hora, la cortamos para que se vea bonita)
                 const fechaCorta = p.fecha_pedido.split('T')[0];
                 
                 return `
@@ -129,7 +122,6 @@ function renderizarProductos(lista) {
         return;
     }
 
-    // Mapeamos el array completo y lo inyectamos en un solo impacto limpio al DOM
     contenedor.innerHTML = lista.map(producto => {
         const stockClase = producto.stock <= 5 ? 'stock-bajo' : 'stock-ok';
         const stockTexto = producto.stock <= 0 ? 'Agotado' : `Stock: ${producto.stock}`;
@@ -137,18 +129,15 @@ function renderizarProductos(lista) {
         return `
             <div class="col-6 col-md-4 col-lg-3 mb-4">
                 <div class="card h-100 shadow-sm card-producto border-0">
-                    
                     <div class="contenedor-img-producto position-relative">
                         <img src="${producto.imagen_url}" class="img-producto-ajustada" alt="${producto.nombre}" 
                              onerror="this.onerror=null; this.src='https://placehold.co/300x300?text=SportFit';">
                         <span class="stock-badge ${stockClase}">${stockTexto}</span>
                     </div>
-                    
                     <div class="card-body text-center d-flex flex-column p-2">
                         <h6 class="card-title fw-bold mb-1 text-dark" style="font-size: 0.95rem;">${producto.nombre}</h6>
                         <p class="card-text text-muted extra-small mb-2" style="font-size: 0.75rem;">${producto.descripcion.substring(0, 40)}...</p>
                         <p class="h5 text-primary mt-auto mb-2">S/ ${producto.precio}</p>
-                        
                         <button class="btn btn-dark btn-sm w-100" 
                             onclick="window.location.href='detalle.html?id=${producto.id_producto}'">
                             Ver producto
@@ -159,10 +148,10 @@ function renderizarProductos(lista) {
     }).join(''); 
 }
 
-// --- CATEGORÍAS MEJORADO ---
+// --- CATEGORÍAS ---
 async function cargarBotonesCategorias() {
     try {
-        const res = await fetch('/api/admin/categorias');
+        const res = await fetch('/api/admin/categories' || '/api/admin/categorias');
         const categories = await res.json();
         const menuLateral = document.getElementById('lista-categorias-menu');
         
@@ -228,7 +217,6 @@ function cambiarCantidad(index, cambio) {
     
     if (nuevaCant < 1) nuevaCant = 1;
     
-    // Topeamos la cantidad si supera el stock real
     if (prodOriginal && nuevaCant > prodOriginal.stock) {
         nuevaCant = prodOriginal.stock;
     }
@@ -265,15 +253,14 @@ function guardarYActualizar() {
     }
 
     let totalAcumulado = 0;
-    listaHtml.innerHTML = ''; 
+    let itemsHtml = ''; 
 
     carrito.forEach((p, index) => {
-        // Buscamos el stock real para este producto
         const prodOriginal = productosLocales.find(prod => prod.id_producto === p.id);
         const stockAlcanzado = prodOriginal && p.cantidad >= prodOriginal.stock;
 
         totalAcumulado += p.precio * p.cantidad;
-        listaHtml.innerHTML += `
+        itemsHtml += `
             <div class="card mb-3 border-0 border-bottom p-2">
                 <div class="row g-0 align-items-center">
                     <div class="col-3 text-center">
@@ -302,11 +289,10 @@ function guardarYActualizar() {
             </div>`;
     });
     
+    listaHtml.innerHTML = itemsHtml;
     totalHtml.innerText = `S/ ${totalAcumulado.toFixed(2)}`;
 
-    // =========================================================================
-    // MODIFICACIÓN DE GESTIÓN LOGÍSTICA - INYECCIÓN DINÁMICA EN EL CHECKOUT
-    // =========================================================================
+    // Inyección de la sección logística controlada sin bucles repetitivos
     let seccionLogistica = document.getElementById('seccion-logistica-dinamica');
     if (!seccionLogistica) {
         seccionLogistica = document.createElement('div');
@@ -333,10 +319,8 @@ function guardarYActualizar() {
                 <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="inputDireccionBarra" placeholder="Ej: Av. Universitaria 1234, Los Olivos" style="font-size: 0.8rem;">
             </div>
         `;
-        listaHtml.appendChild(seccionLogistica);
-    } else {
-        listaHtml.appendChild(seccionLogistica);
     }
+    listaHtml.appendChild(seccionLogistica);
 }
 
 function eliminarDelCarrito(index) {
@@ -350,13 +334,12 @@ if (btnCheckout) {
     btnCheckout.addEventListener('click', async () => {
         const token = localStorage.getItem('token');
         
-        // 🔒 SI NO HAY SESIÓN INICIADA -> REDIRECT DIRECTO
+        // 🔒 REDIRECT DIRECTO AL LOGIN SIN ALERTA
         if (!token) {
             window.location.href = 'login.html';
             return;
         }
 
-        // 🚚 GESTIÓN LOGÍSTICA: CAPTURAR EL VALOR SELECCIONADO EN LA BARRA LATERAL
         const metodoSeleccionado = document.querySelector('input[name="metodoEntrega"]:checked').value;
         let direccionFinal = 'RECOJO EN TIENDA';
 
@@ -371,7 +354,7 @@ if (btnCheckout) {
 
         const pedidoData = {
             productos: carrito,
-            direccion_envio: direccionFinal, // Se mapea directo a tu columna existente de MariaDB
+            direccion_envio: direccionFinal, 
             total: carrito.reduce((t, p) => t + (p.precio * p.cantidad), 0)
         };
 
@@ -391,7 +374,6 @@ if (btnCheckout) {
             const resData = await response.json();
 
             if (response.ok) {
-                // ✅ PANTALLA DE ÉXITO
                 carrito = [];
                 guardarYActualizar();
                 
@@ -420,7 +402,6 @@ if (btnCheckout) {
                 };
 
             } else {
-                // ❌ PANTALLA DE ERROR DE STOCK
                 offcanvasBody.innerHTML = `
                     <div class="d-flex flex-column align-items-center justify-content-center h-100 text-center px-3 mt-5">
                         <i class="bi bi-exclamation-triangle-fill text-warning mb-3" style="font-size: 4rem;"></i>
@@ -439,7 +420,7 @@ if (btnCheckout) {
                 };
             }
         } catch (error) {
-            alert("Error de conexión con el servidor.");
+            console.error("Error en el Checkout:", error);
         }
     });
 }

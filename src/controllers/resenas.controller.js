@@ -6,14 +6,17 @@ resenasController.crearResena = async (req, res) => {
     try {
         const { id_producto, estrellas, texto, nombre } = req.body;
 
+        // Si no hay usuario en la petición, lo mandamos directo al login
+        if (!req.usuario) {
+            return res.redirect('/login.html'); 
+        }
+
         if (!id_producto || !estrellas || !texto) {
             return res.status(400).json({ error: 'Todos los campos son obligatorios.' });
         }
 
         let nombreFinal = nombre || 'Usuario SportFit';
-        if (!nombre && req.usuario) {
-            nombreFinal = req.usuario.nombre || req.usuario.username || req.usuario.nombre_usuario || nombreFinal;
-        }
+        nombreFinal = req.usuario.nombre || req.usuario.username || req.usuario.nombre_usuario || nombreFinal;
 
         const db = await conectarMongoDB();
         const coleccion = db.collection('reviews');
@@ -24,7 +27,7 @@ resenasController.crearResena = async (req, res) => {
             estrellas: parseInt(estrellas),
             texto: texto,
             fecha: new Date().toLocaleDateString('es-ES'),
-            reacciones: { '👍': 0, '👎': 0, '❤️': 0, '😮': 0 }, // 🔥 Corregido con el Dislike inicial
+            reacciones: { '👍': 0, '👎': 0, '❤️': 0, '😮': 0 }, 
             respuestas: []
         };
 
@@ -51,7 +54,6 @@ resenasController.obtenerResenasPorProducto = async (req, res) => {
 };
 
 // 😀 3. REACCIONAR A UNA RESEÑA CON UN EMOTICÓN (PATCH)
-
 resenasController.reaccionarAResena = async (req, res) => {
     try {
         const { idResena } = req.params;
@@ -62,8 +64,9 @@ resenasController.reaccionarAResena = async (req, res) => {
             identificadorUnico = req.usuario.id_usuario || req.usuario.id || req.usuario.nombre || req.usuario.username;
         }
 
+        // REDIRECCIÓN DIRECTA: Si no hay sesión, enviarlo al login de inmediato
         if (!identificadorUnico) {
-            return res.status(401).json({ error: 'Usuario no identificado en el sistema.' });
+            return res.redirect('/login.html');
         }
 
         const emoticonesValidos = ['👍', '👎', '❤️', '😮'];
@@ -80,16 +83,12 @@ resenasController.reaccionarAResena = async (req, res) => {
             return res.status(404).json({ error: 'La opinión no existe.' });
         }
 
-        // Aseguramos estructuras limpias
         if (!resena.reacciones) resena.reacciones = { '👍': 0, '👎': 0, '❤️': 0, '😮': 0 };
         if (!resena.usuarios_reacciones) resena.usuarios_reacciones = [];
 
-        // Buscamos si este usuario ya dejó alguna reacción previa en esta reseña
-        // Guardaremos los registros como objetos: { usuario: "id", emoticon: "👍" }
         const reaccionPrevia = resena.usuarios_reacciones.find(u => u.usuario === identificadorUnico.toString());
 
         if (reaccionPrevia) {
-            // Caso 1: El usuario le dio clic EXACTAMENTE al mismo emoticón -> Se lo quitamos (Deshacer voto)
             if (reaccionPrevia.emoticon === emoticon) {
                 await coleccion.updateOne(
                     { _id: new ObjectId(idResena) },
@@ -101,7 +100,6 @@ resenasController.reaccionarAResena = async (req, res) => {
                 return res.json({ mensaje: 'Reacción removida', accion: 'quitado', emoticon });
             } 
             
-            // Caso 2: El usuario cambió de opinión (ej: de 👍 a 👎) -> Restamos al viejo y sumamos al nuevo
             const emoticonViejo = reaccionPrevia.emoticon;
             await coleccion.updateOne(
                 { _id: new ObjectId(idResena), "usuarios_reacciones.usuario": identificadorUnico.toString() },
@@ -116,7 +114,6 @@ resenasController.reaccionarAResena = async (req, res) => {
             return res.json({ mensaje: 'Reacción actualizada', accion: 'cambiado', emoticonViejo, emoticonNuevo: emoticon });
 
         } else {
-            // Caso 3: El usuario no ha reaccionado nunca -> Sumamos directo
             const nuevaInteraccion = {
                 usuario: identificadorUnico.toString(),
                 emoticon: emoticon
@@ -144,15 +141,17 @@ resenasController.responderAResena = async (req, res) => {
         const { idResena } = req.params;
         const { texto } = req.body;
 
-        const usuarioTemporal = req.usuario || {};
+        // REDIRECCIÓN DIRECTA: Si no hay usuario administrador válido, al login
+        if (!req.usuario) {
+            return res.redirect('/login.html');
+        }
+
         if (!texto || texto.trim() === '') {
             return res.status(400).json({ error: 'La respuesta no puede enviarse vacía.' });
         }
 
         let nombreAdmin = 'Soporte SportFit';
-        if (req.usuario) {
-            nombreAdmin = req.usuario.nombre || req.usuario.username || nombreAdmin;
-        }
+        nombreAdmin = req.usuario.nombre || req.usuario.username || nombreAdmin;
 
         const { ObjectId } = require('mongodb');
         const db = await conectarMongoDB();
